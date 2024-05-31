@@ -11,37 +11,41 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
 
 import rclpy
 from rclpy.node import Node
 
-from std_msgs.msg import Float64
+from sensor_msgs.msg import NavSatFix
 
+APOGEE = 6000.0  # [ft]
 
-class MotorController(Node):
+class MinimalPublisher(Node):
 
     def __init__(self):
-        super().__init__('motor_controller')
-        self.subscription = self.create_subscription(Float64, 'motor_steps',
-            self.listener_callback, 10)     # Subscribe to output of PID
-        self.subscription  # prevent unused variable warning
+        super().__init__('altimeter_data_pub')
+        self.publisher_ = self.create_publisher(NavSatFix, 'altimeter/fused', 10)
+        self.timer_period = 0.1  # seconds
+        self.timer = self.create_timer(self.timer_period, self.timer_callback)
+        self.time = -math.sqrt(APOGEE)
 
-    # Motor step directive received 
-    def listener_callback(self, msg):
-        self.get_logger().info('I heard: "%s"' % msg.data)
+    def timer_callback(self):
+        msg = NavSatFix()
+        msg.altitude = (APOGEE - (self.time**2)) / 3.281
+        self.time += self.timer_period
+        self.publisher_.publish(msg)
+        self.get_logger().info(f'Publishing: {msg.altitude * 3.281}ft')
 
 
 def main(args=None):
     rclpy.init(args=args)
-
-    motor_controller = MotorController()
-
-    rclpy.spin(motor_controller)
+    minimal_publisher = MinimalPublisher()
+    rclpy.spin(minimal_publisher)
 
     # Destroy the node explicitly
     # (optional - otherwise it will be done automatically
     # when the garbage collector destroys the node object)
-    motor_controller.destroy_node()
+    minimal_publisher.destroy_node()
     rclpy.shutdown()
 
 
